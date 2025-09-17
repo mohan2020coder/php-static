@@ -1,21 +1,26 @@
+# Stage 1: Build PHP statically
 FROM alpine:3.18 AS builder
 
 ARG PHP_VERSION=8.2.12
-
 ENV PHP_VERSION=${PHP_VERSION}
 
+# Install required build dependencies
 RUN apk add --no-cache \
     autoconf bison re2c make gcc g++ musl-dev openssl-dev zlib-dev \
     libxml2-dev curl-dev libpng-dev libjpeg-turbo-dev freetype-dev \
-    postgresql-dev libtool pkgconf libxslt-dev
+    postgresql-dev libtool pkgconf libxslt-dev wget
 
 WORKDIR /build
 
-RUN wget https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz && \
-    tar -xf php-${PHP_VERSION}.tar.gz
+# Clean PHP_VERSION to remove possible carriage return and download PHP source
+RUN PHP_VERSION_CLEAN=$(echo "$PHP_VERSION" | tr -d '\r') && \
+    echo "Downloading PHP version: $PHP_VERSION_CLEAN" && \
+    wget https://www.php.net/distributions/php-${PHP_VERSION_CLEAN}.tar.gz && \
+    tar -xf php-${PHP_VERSION_CLEAN}.tar.gz
 
-WORKDIR /build/php-${PHP_VERSION}
+WORKDIR /build/php-${PHP_VERSION_CLEAN}
 
+# Configure PHP build: disable shared libs, enable CLI and required extensions
 RUN ./configure \
     --disable-all \
     --enable-cli \
@@ -38,10 +43,13 @@ RUN ./configure \
     LDFLAGS="-static" \
     CFLAGS="-static"
 
+# Build using all CPU cores
 RUN make -j$(nproc)
 
+# Stage 2: Create minimal final image with static binary
 FROM scratch AS final
-COPY --from=builder /build/php-${PHP_VERSION}/sapi/cli/php /php-static
+
+COPY --from=builder /build/php-${PHP_VERSION_CLEAN}/sapi/cli/php /php-static
 
 ENTRYPOINT ["/php-static"]
 CMD ["-v"]
