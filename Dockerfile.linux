@@ -34,7 +34,6 @@ RUN ./configure \
     --enable-gd \
     --with-jpeg \
     --with-freetype \
-    --enable-static=yes \
     --disable-shared \
     LDFLAGS="-static" \
     CFLAGS="-static"
