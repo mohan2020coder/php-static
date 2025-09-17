@@ -1,0 +1,33 @@
+name: Build PHP Static Linux Binary & Release
+
+on:
+  push:
+    tags:
+      - 'v*' # e.g. v8.2.12
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract PHP version from tag
+        id: extract_version
+        run: echo "PHP_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Build PHP static binary
+        run: |
+          docker build -t php-static-linux -f Dockerfile.linux --build-arg PHP_VERSION=$PHP_VERSION .
+          docker create --name temp php-static-linux
+          docker cp temp:/php-static ./php-static-linux-$PHP_VERSION
+          docker rm temp
+          chmod +x ./php-static-linux-$PHP_VERSION
+
+      - name: Create GitHub Release and upload binary
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./php-static-linux-$PHP_VERSION
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

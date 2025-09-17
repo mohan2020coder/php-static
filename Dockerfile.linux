@@ -1,0 +1,48 @@
+FROM alpine:3.18 AS builder
+
+ARG PHP_VERSION=8.2.12
+
+ENV PHP_VERSION=${PHP_VERSION}
+
+RUN apk add --no-cache \
+    autoconf bison re2c make gcc g++ musl-dev openssl-dev zlib-dev \
+    libxml2-dev curl-dev libpng-dev libjpeg-turbo-dev freetype-dev \
+    postgresql-dev libtool pkgconf libxslt-dev
+
+WORKDIR /build
+
+RUN wget https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz && \
+    tar -xf php-${PHP_VERSION}.tar.gz
+
+WORKDIR /build/php-${PHP_VERSION}
+
+RUN ./configure \
+    --disable-all \
+    --enable-cli \
+    --enable-mbstring \
+    --enable-json \
+    --enable-pdo \
+    --enable-pdo_pgsql \
+    --with-pgsql \
+    --with-openssl \
+    --with-zlib \
+    --with-curl \
+    --enable-bcmath \
+    --enable-soap \
+    --enable-xml \
+    --enable-fileinfo \
+    --enable-gd \
+    --with-jpeg \
+    --with-freetype \
+    --enable-static=yes \
+    --disable-shared \
+    LDFLAGS="-static" \
+    CFLAGS="-static"
+
+RUN make -j$(nproc)
+
+FROM scratch AS final
+COPY --from=builder /build/php-${PHP_VERSION}/sapi/cli/php /php-static
+
+ENTRYPOINT ["/php-static"]
+CMD ["-v"]
